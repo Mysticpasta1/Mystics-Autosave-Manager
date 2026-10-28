@@ -1,0 +1,16 @@
+#Save on a timer while the world is open. Manual saves, shutdown, reload, and dimension changes are separate.
+timerEnabled = true
+
+#Minutes between timed saves while timerEnabled is true. Vanilla saves about every 5 minutes; a longer interval writes to disk less often.
+# Default: 30
+# Range: 1 ~ 1440
+intervalMinutes = 30
+
+#Save after a successful /reload, once datapacks and structure templates have finished reloading.
+saveOnReload = true
+
+#Save when a player changes dimension, including returning from the End. Several changes in the same tick share one save.
+saveOnDimensionChange = true
+
+#Tell everyone in chat when a timed, reload, or dimension save finishes. Manual saves always reply to the player who asked.
+announceSaves = true
