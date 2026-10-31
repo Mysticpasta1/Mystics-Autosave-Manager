@@ -32,4 +32,19 @@ public class MinecraftServerMixin {
         MinecraftServer server = (MinecraftServer) (Object) this;
         cir.setReturnValue(cir.getReturnValue().thenRun(() -> AutosaveManager.onResourcesReloaded(server)));
     }
+
+    /**
+     * The crash report has already been written at this point. Save once more before the server
+     * reports the crash, in case the normal shutdown save cannot finish.
+     */
+    @Inject(
+            method = "runServer",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/server/MinecraftServer;onServerCrash(Lnet/minecraft/CrashReport;)V"
+            )
+    )
+    private void mam$saveBeforeCrash(CallbackInfo ci) {
+        AutosaveManager.onCrashDetected((MinecraftServer) (Object) this);
+    }
 }

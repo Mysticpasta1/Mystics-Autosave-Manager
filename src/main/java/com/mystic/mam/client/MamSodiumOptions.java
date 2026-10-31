@@ -59,9 +59,22 @@ final class MamSodiumOptions {
             Config.ANNOUNCE_SAVES.save();
         });
 
+        Option<?> crash = toggle("saveOnCrash", Config::saveOnCrash, value -> {
+            Config.SAVE_ON_CRASH.set(value);
+            Config.SAVE_ON_CRASH.save();
+        });
+
+        Option<?> hang = toggle("saveOnHang", Config::saveOnHang, value -> {
+            Config.SAVE_ON_HANG.set(value);
+            Config.SAVE_ON_HANG.save();
+        });
+
         return new OptionPage(
                 Component.translatable("key.categories.mam"),
-                ImmutableList.of(group("timer", timer, interval), group("events", reload, dimension, announce)));
+                ImmutableList.of(
+                        group("timer", timer, interval),
+                        group("events", reload, dimension, announce),
+                        group("safety", crash, hang)));
     }
 
     /** A boolean option labelled and described by the matching {@code mam.configuration.<key>} entries. */

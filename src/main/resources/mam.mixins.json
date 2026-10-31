@@ -4,10 +4,12 @@
   "package": "com.mystic.mam.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
-    "MinecraftServerMixin"
+    "MinecraftServerMixin",
+    "ServerWatchdogMixin"
   ],
   "client": [
-    "IntegratedServerMixin"
+    "IntegratedServerMixin",
+    "MinecraftMixin"
   ],
   "injectors": {
     "defaultRequire": 1

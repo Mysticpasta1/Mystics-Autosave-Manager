@@ -19,7 +19,8 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * Vanilla's repeating autosave is suppressed. A world write happens only for:
- * a manual request, the configured timer, a datapack reload, a dimension change, or server shutdown.
+ * a manual request, the configured timer, a datapack reload, a dimension change, a detected crash
+ * or hang, or server shutdown.
  */
 @EventBusSubscriber(modid = Mam.MODID)
 public final class AutosaveManager {
@@ -35,6 +36,8 @@ public final class AutosaveManager {
         TIMER,
         RELOAD,
         DIMENSION,
+        CRASH,
+        HANG,
         EMERGENCY
     }
 
@@ -69,11 +72,13 @@ public final class AutosaveManager {
         resetTimer();
         EmergencySave.watch(event.getServer());
         Mam.LOGGER.info(
-                "Autosave timer is {}. Interval is {} minutes. Reload saves: {}. Dimension saves: {}.",
+                "Autosave timer is {}. Interval is {} minutes. Reload saves: {}. Dimension saves: {}. Crash saves: {}. Hang saves: {}.",
                 Config.timerEnabled() ? "on" : "off",
                 Config.intervalMinutes(),
                 Config.saveOnReload(),
-                Config.saveOnDimensionChange()
+                Config.saveOnDimensionChange(),
+                Config.saveOnCrash(),
+                Config.saveOnHang()
         );
     }
 
@@ -81,6 +86,7 @@ public final class AutosaveManager {
     public static void onServerStopping(ServerStoppingEvent event) {
         worldOpen = false;
         dimensionSaveQueued = false;
+        EmergencySave.stopHangWatcher();
         Mam.LOGGER.info("World server is closing. The shutdown save writes the world once.");
     }
 
@@ -157,6 +163,12 @@ public final class AutosaveManager {
         var dimension = Commands.literal("dimension")
                 .then(Commands.literal("on").executes(context -> setDimension(context.getSource(), true)))
                 .then(Commands.literal("off").executes(context -> setDimension(context.getSource(), false)));
+        var crash = Commands.literal("crash")
+                .then(Commands.literal("on").executes(context -> setCrash(context.getSource(), true)))
+                .then(Commands.literal("off").executes(context -> setCrash(context.getSource(), false)));
+        var hang = Commands.literal("hang")
+                .then(Commands.literal("on").executes(context -> setHang(context.getSource(), true)))
+                .then(Commands.literal("off").executes(context -> setHang(context.getSource(), false)));
         var mam = Commands.literal("mam")
                 .requires(AutosaveManager::canSave)
                 .then(save)
@@ -164,6 +176,8 @@ public final class AutosaveManager {
                 .then(interval)
                 .then(reload)
                 .then(dimension)
+                .then(crash)
+                .then(hang)
                 .then(Commands.literal("status").executes(context -> {
                     sendStatus(context.getSource());
                     return 1;
@@ -180,6 +194,21 @@ public final class AutosaveManager {
         boolean saved = save(server, true, Reason.RELOAD);
         if (saved && Config.announceSaves()) {
             announce(server, Reason.RELOAD);
+        }
+    }
+
+    /** Called just before the server reports a crash and before its normal shutdown save. */
+    public static void onCrashDetected(MinecraftServer server) {
+        EmergencySave.stopHangWatcher();
+        if (Config.saveOnCrash()) {
+            EmergencySave.attemptSave(server, Reason.CRASH);
+        }
+    }
+
+    /** Called by the dedicated server watchdog or the integrated-server hang watcher. */
+    public static void onHangDetected(MinecraftServer server) {
+        if (Config.saveOnHang()) {
+            EmergencySave.attemptSave(server, Reason.HANG);
         }
     }
 
@@ -247,6 +276,26 @@ public final class AutosaveManager {
         return 1;
     }
 
+    private static int setCrash(CommandSourceStack source, boolean enabled) {
+        Config.SAVE_ON_CRASH.set(enabled);
+        Config.SAVE_ON_CRASH.save();
+        source.sendSuccess(
+                () -> Component.translatable(enabled ? "mam.message.crash_on" : "mam.message.crash_off"),
+                true
+        );
+        return 1;
+    }
+
+    private static int setHang(CommandSourceStack source, boolean enabled) {
+        Config.SAVE_ON_HANG.set(enabled);
+        Config.SAVE_ON_HANG.save();
+        source.sendSuccess(
+                () -> Component.translatable(enabled ? "mam.message.hang_on" : "mam.message.hang_off"),
+                true
+        );
+        return 1;
+    }
+
     private static void sendStatus(CommandSourceStack source) {
         int secondsLeft = Math.max(0, ticksUntilSave / 20);
         source.sendSuccess(
@@ -257,7 +306,9 @@ public final class AutosaveManager {
                         secondsLeft / 60,
                         secondsLeft % 60,
                         Config.saveOnReload() ? Component.translatable("mam.message.on") : Component.translatable("mam.message.off"),
-                        Config.saveOnDimensionChange() ? Component.translatable("mam.message.on") : Component.translatable("mam.message.off")
+                        Config.saveOnDimensionChange() ? Component.translatable("mam.message.on") : Component.translatable("mam.message.off"),
+                        Config.saveOnCrash() ? Component.translatable("mam.message.on") : Component.translatable("mam.message.off"),
+                        Config.saveOnHang() ? Component.translatable("mam.message.on") : Component.translatable("mam.message.off")
                 ),
                 false
         );
